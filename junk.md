@@ -1,173 +1,500 @@
+Let's go step by step. First, let's analyze the **initial state** based on the provided architecture diagram and description.
+
+### **Understanding the Initial State**
+
+The system is structured into multiple layers:
+
+#### **1. Front End (Channels)**
+
+- Various channels (Mobile/Online, Wearable, Car Console, Email, SMS, ATM, etc.) interact with the system.
+- These channels initiate requests to **CCBS GCCAD** using **PAN** (Point of Account Number).
+
+#### **2. Experience API / Middleware**
+
+- Middleware processes the incoming requests from the front-end channels and forwards them to the CCBS system.
+
+#### **3. Domain Layer (CCBS Servers & LG Servers)**
+
+- **CCBS-Servers**:
+    - **Step 1**: The channel invokes **CCBS GCCAD** using PAN.
+    - **Step 2 & 3**: The **CCBS GCCAD API** makes two separate calls to **Fiserv** through **RISE**:
+        - First API call fetches **250 attributes**.
+        - Second API call fetches **40 attributes** (including historicalLastStatementBalanceAmount).
+- **RISE**: The middleware responsible for fetching System of Record (SOR) data from **Fiserv**.
+- **LG-Servers**:
+    - **LG-Scheduler** is responsible for triggering batch jobs for different services.
+    - **CCBS Batch** processes data using stored procedures and loads it into **DAN DB**.
+
+#### **4. Facade Layer**
+
+- This layer is mainly responsible for interacting with **RISE**, which in turn fetches data from Fiserv.
+
+#### **5. System of Record (SOR)**
+
+- **Fiserv** is the authoritative system storing the data.
+- RISE retrieves data from Fiserv based on the PAN.
 
 ---
 
-**Acceptance Criteria:**
+### **Step-by-Step Breakdown**
 
-- A plan for cross-training methods documented to promote collaborative knowledge-sharing practices within the team.
-- Methods such as pairing, mobbing, or swarming evaluated and selected based on suitability for team dynamics and project requirements.
-- Story selection guidelines established to determine which types of tasks are best suited for the chosen collaboration methods.
-- Accountability measures documented to track team progress, pivoting strategies identified to adapt to better-suited methods as necessary.
-- Impact assessment conducted to evaluate how the chosen method affects current productivity and committed timelines.
-- Documentation reviewed and refined with input from multiple team members to ensure the plan aligns with team objectives and operational efficiency.
+Here’s what happens in each step:
 
----
-### **1. Pairing**
-
-**Definition:**  
-Pair programming involves two developers working together at one workstation. One acts as the "driver," writing the code, while the other acts as the "observer" or "navigator," reviewing each line as it’s written.
-
-**Best suited for:**
-
-- Tasks that require precision or critical business logic, such as resolving high-severity production issues or complex bug fixes.
-- Training and mentoring less-experienced developers.
-- Implementing complex new features where close collaboration improves code quality.
-
-**Recommendation for your environment:**
-
-- **CCBS/CCDS agile squads:** Ideal for complex production support tickets when new team members are on rotation.
-- **Platform team:** Can be used when developing core frameworks or critical modules.
-
----
-### **2. Mobbing**
-
-**Definition:**  
-Mobbing involves the entire team (or a significant group) working on a single problem simultaneously, often sharing one screen.
-
-**Best suited for:**
-
-- Tasks that require brainstorming or multiple perspectives, such as architectural decisions.
-- Troubleshooting high-priority production outages.
-- Knowledge-sharing exercises for cross-functional learning.
-
-**Recommendation for your environment:**
-
-- **CCBS/CCDS agile squads:** Use mobbing during major production outages to gather perspectives quickly and find a resolution.
-- **Platform team:** Effective for collaborative design discussions or technical spikes requiring diverse expertise.
-
----
-### **3. Swarming**
-
-**Definition:**  
-Swarming occurs when multiple team members come together to work on different aspects of the same task or story simultaneously but independently.
-
-**Best suited for:**
-
-- High-priority, time-sensitive tasks where splitting work can expedite delivery.
-- Complex features that require different skill sets (frontend, backend, testing).
-- Collaborative production issue analysis where the workload can be divided.
-
-**Recommendation for your environment:**
-
-- **CCBS/CCDS agile squads:** Ideal for urgent production fixes where multiple team members investigate different parts of the system in parallel.
-- **Platform team:** Can be applied when enhancing existing systems or building features that require simultaneous development efforts.
+1. **A channel invokes CCBS GCCAD API with a PAN.**
+2. **CCBS API makes the first request** to Fiserv via RISE to retrieve 250 attributes.
+3. **CCBS API makes the second request** to Fiserv via RISE to retrieve 40 additional attributes.
+4. **RISE fetches System of Record (SOR) data** from Fiserv.
+5. **CCBS services interact with DAN DB** for additional data processing.
+6. **LG-Scheduler triggers jobs** based on service type.
+7. **CCBS Batch retrieves data** from various databases using stored procedures.
+8. **CCBS Batch loads data into DAN DB.**
 
 ---
 
-### **Which is Best?**
+Now that we have covered the initial state, you can share the **CCBS Batch details**, and I'll explain that next.
 
-- **Pairing:** Better for mentoring, complex code issues, and knowledge transfer between two developers.
-- **Mobbing:** Best for critical collaborative brainstorming, production outages, and architectural decisions.
-- **Swarming:** Best for high-priority parallel tasks that require rapid resolution or development.
+The document provides an overview of CCBS batch jobs at Wells Fargo. Here are the key takeaways:
 
-Since both Agile teams rotate on production support, **mobbing during high-severity production issues** and **swarming for complex development tasks** would likely be the most effective. Pairing can be reserved for mentoring and bug fixes.
+### **1. Technologies Used**
 
----
+- **Spring Batch Framework**: Used for batch processing.
+- **BatchWorx Framework**: Supports batch execution.
+- **Java 8**
+- **Spring Batch 2.1.8**
+- **ServiceWorx 9.0**
+- **BatchWorx 2.1**
+- **Autosys/NDM**: Job scheduling and file transfer.
 
-### **Story Selection Guidelines by Collaboration Method**
+### **2. Batch Architecture**
 
-#### **1. Pairing (Two Developers Working Together)**
+- **Existing and New Architecture**: Both involve reading from **CardsIS/ECAR**, processing data through a reader and writer, and storing it in **DAN DB**.
+- **Stage Tables and Materialized Views**: Refreshing materialized views from batch staging tables.
 
-**Best for:**
+### **3. Types of CCBS Batches**
 
-- Complex development tasks requiring precision and continuous review.
-- Bug fixes that involve deep knowledge of legacy systems.
-- Knowledge transfer and mentorship opportunities.
+- **Webrisk**: Synchronizes risk offers between ECAR and CCBS.
+- **RapSync**: Loads merchant lookup and super check account info.
+- **Merchant Number**: Loads merchant numbers from **CardsIS** to **DAN DB** (runs weekly).
+- **Selfcure**: Processes **self-cure** offers from **ECAR** via NDM.
+- **cbAddrLkp**: Synchronizes credit bureau address info.
+- **ClmRetry** & **MqRetry**: Retries failed credit bureau address synchronization.
 
-**Example Stories:**
+### **4. Batch Execution & Monitoring**
 
-- Debugging critical production issues.
-- Implementing changes in core business logic for CCBS/CCDS applications.
-- Developing complex features for credit card services.
+- **Triggered by AutoSys Jobs**: Alerts raised for failures or missing NDM files.
+- **Email Notifications**: Sent for success/failure.
+- **Launch Scripts**:
+    - Shell scripts set environment variables and execute batch jobs via **Batchlauncher** (BatchWorx API).
+    - Configuration files include **Spring Beans XML** for batch execution and email settings.
 
----
+Would you like more details on any specific batch or execution process?
 
-#### **2. Mobbing (Whole Team Collaborating Simultaneously)**
+### **What is a Batch Job in Spring Boot/Java?**
 
-**Best for:**
-
-- Critical production outages where multiple perspectives are needed quickly.
-- Architectural decision-making or designing new application frameworks.
-- Major code refactoring tasks involving many interdependent modules.
-
-**Example Stories:**
-
-- High-severity production incident analysis and resolution.
-- Architectural redesign or technical spikes for new service implementations.
-- Large-scale codebase refactoring or application modernization efforts.
-
----
-
-#### **3. Swarming (Multiple Team Members Working Independently on a Shared Task)**
-
-**Best for:**
-
-- Urgent tasks that require parallel development efforts.
-- Production issues involving investigation across multiple services.
-- Large feature development involving different components (backend, frontend, and testing).
-
-**Example Stories:**
-
-- Addressing critical production incidents with parallel investigation tracks (API logs, DB issues, Splunk analysis).
-- Developing an end-to-end feature for CCBS/CCDS, where platform and service teams collaborate simultaneously.
-- Data migration tasks where multiple modules need concurrent updates.
+A **batch job** in Spring Boot (using Spring Batch) is a **background process that executes repetitive, bulk, or long-running tasks** without user interaction. These jobs often process large datasets efficiently, such as reading data from a database, transforming it, and writing it back.
 
 ---
 
-### **Accountability Measures & Pivoting Strategies**
+## **Key Concepts of a Batch Job**
 
-**1. Progress Tracking Measures:**
+A batch job consists of the following core components:
 
-- **Daily Stand-ups:** Discuss ongoing collaboration tasks and review progress toward story goals.
-- **Retrospectives:** Analyze the effectiveness of the chosen collaboration method at the end of each sprint.
-- **Collaboration Metrics:**
-    - Number of paired/mobbing sessions conducted.
-    - Average time spent resolving production issues using collaboration methods.
-- **Documentation Updates:** Maintain a knowledge base in Confluence to document lessons learned and key takeaways from collaborative efforts.
+### **1. Job**
 
-**2. Accountability Mechanisms:**
+A batch job represents a complete end-to-end process. It consists of multiple **steps**.
 
-- Assign multiple assignees for stories requiring collaboration to ensure shared responsibility.
-- Create ownership guidelines where each task has a primary and secondary owner for effective knowledge sharing.
-- Use Jira comments and task updates to document contributions and track story progress.
+### **2. Step**
 
-**3. Pivoting Strategies:**
+Each step in a batch job is a **single, independent task**, such as reading, processing, or writing data.
 
-- **Feedback Loops:** Gather team feedback during retrospectives on the effectiveness of pairing/mobbing/swarming.
-- **Performance Metrics:** Compare task completion times before and after implementing a method.
-- **Adaptation Plan:**
-    - If pairing results in productivity delays, switch to mobbing for critical incidents.
-    - If mobbing sessions become chaotic, pivot to swarming for parallel development.
-    - If swarming leads to a lack of collaboration, revert to pairing for better focus.
+### **3. Reader, Processor, and Writer**
 
----
-### **Impact Assessment for Productivity and Committed Timelines**
+Spring Batch jobs usually follow a **read-process-write** pattern:
 
-**1. Impact Analysis:**
+- **ItemReader** → Reads data from a source (e.g., database, CSV, XML, API).
+- **ItemProcessor** → Processes the data (e.g., transforming, filtering).
+- **ItemWriter** → Writes the processed data to a destination (e.g., database, file, queue).
 
-- Assess collaboration time required for each method versus individual task effort.
-- Monitor sprint velocity before and after implementing collaborative methods.
-- Evaluate production support incident resolution time.
+### **4. JobLauncher**
 
-**2. Mitigation Plans for Productivity Loss:**
+This is responsible for triggering the batch job manually or on a schedule.
 
-- Define time-boxed collaboration sessions to prevent excessive time consumption.
-- Maintain a buffer in sprint planning for collaborative sessions.
-- Identify non-critical tasks that can be deprioritized when collaboration requires more bandwidth.
+### **5. JobRepository**
 
-**3. Reporting Mechanism:**
-
-- Create a dashboard in Jira to visualize task progress and collaboration efficiency.
-- Review velocity trends and incident resolution times during sprint reviews to understand impact.
-- Share findings with stakeholders to make data-driven decisions for pivoting methods if needed.
+Stores metadata about batch execution, such as job status, start time, and errors.
 
 ---
+
+## **Example: Spring Batch Job in Java**
+
+Let’s look at a simple batch job that reads data from a CSV file, processes it, and saves it to a database.
+
+### **1. Add Dependencies (Maven)**
+
+Add Spring Boot and Spring Batch dependencies:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-batch</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.postgresql</groupId>
+    <artifactId>postgresql</artifactId>
+</dependency>
+```
+
+---
+
+### **2. Define an Entity (Data Model)**
+
+This represents the data that will be read and written.
+
+```java
+@Entity
+public class Customer {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String name;
+    private String email;
+
+    // Constructors, Getters, Setters
+}
+```
+
+---
+
+### **3. Create an Item Reader (Read CSV File)**
+
+This reads data from a CSV file.
+
+```java
+@Bean
+public FlatFileItemReader<Customer> reader() {
+    return new FlatFileItemReaderBuilder<Customer>()
+            .name("customerReader")
+            .resource(new FileSystemResource("customers.csv"))
+            .delimited()
+            .names("name", "email")
+            .fieldSetMapper(new BeanWrapperFieldSetMapper<>() {{
+                setTargetType(Customer.class);
+            }})
+            .build();
+}
+```
+
+---
+
+### **4. Create an Item Processor (Transform Data)**
+
+This processes and modifies each item before saving.
+
+```java
+@Component
+public class CustomerProcessor implements ItemProcessor<Customer, Customer> {
+    @Override
+    public Customer process(Customer customer) {
+        customer.setEmail(customer.getEmail().toLowerCase());
+        return customer;
+    }
+}
+```
+
+---
+
+### **5. Create an Item Writer (Save to Database)**
+
+This writes processed data to a database.
+
+```java
+@Bean
+public JdbcBatchItemWriter<Customer> writer(DataSource dataSource) {
+    return new JdbcBatchItemWriterBuilder<Customer>()
+            .dataSource(dataSource)
+            .sql("INSERT INTO customer (name, email) VALUES (:name, :email)")
+            .beanMapped()
+            .build();
+}
+```
+
+---
+
+### **6. Define the Batch Job**
+
+```java
+@Bean
+public Job importCustomerJob(JobRepository jobRepository, Step step1) {
+    return new JobBuilder("importCustomerJob", jobRepository)
+            .incrementer(new RunIdIncrementer())
+            .flow(step1)
+            .end()
+            .build();
+}
+
+@Bean
+public Step step1(JobRepository jobRepository, PlatformTransactionManager transactionManager) {
+    return new StepBuilder("step1", jobRepository)
+            .<Customer, Customer>chunk(10)
+            .reader(reader())
+            .processor(new CustomerProcessor())
+            .writer(writer(null))
+            .transactionManager(transactionManager)
+            .build();
+}
+```
+
+---
+
+### **7. Run the Batch Job**
+
+Trigger the job from the `CommandLineRunner`:
+
+```java
+@Component
+public class JobRunner implements CommandLineRunner {
+    @Autowired
+    private JobLauncher jobLauncher;
+    @Autowired
+    private Job importCustomerJob;
+
+    @Override
+    public void run(String... args) throws Exception {
+        JobParameters parameters = new JobParametersBuilder()
+                .addLong("time", System.currentTimeMillis())
+                .toJobParameters();
+        jobLauncher.run(importCustomerJob, parameters);
+    }
+}
+```
+
+---
+
+## **How It Works**
+
+1. **Reads** data from `customers.csv`.
+2. **Processes** each record (e.g., converts emails to lowercase).
+3. **Writes** the processed records into the database.
+4. **Job execution metadata** is stored in the JobRepository.
+5. The job can be scheduled using **Spring Scheduler or AutoSys**.
+
+---
+
+## **Use Cases of Batch Jobs**
+
+- **Processing large files** (CSV, XML, JSON, DB dumps)
+- **Data migration** (Moving data from one system to another)
+- **Generating reports** (End-of-day or monthly reports)
+- **ETL (Extract, Transform, Load) operations**
+- **Reconciliation jobs** (Matching transactions in banking)
+
+---
+
+## **Batch Job Scheduling**
+
+Spring Batch jobs can be scheduled using:
+
+1. **Spring Scheduler (`@Scheduled`)**:
+    
+    ```java
+    @Scheduled(cron = "0 0 12 * * ?") // Runs daily at 12 PM
+    public void runJob() {
+        jobLauncher.run(importCustomerJob, new JobParameters());
+    }
+    ```
+    
+2. **Quartz Scheduler** (More advanced scheduling)
+3. **Autosys/NDM** (Enterprise job schedulers)
+
+---
+
+## **Summary**
+
+- A **Spring Batch job** is used for bulk, scheduled, and repetitive data processing.
+- It follows a **read-process-write** pattern.
+- Uses **ItemReader, ItemProcessor, and ItemWriter** for modular processing.
+- Jobs can be **scheduled** using cron, Quartz, or enterprise schedulers.
+
+Would you like more details on any specific part, such as monitoring or error handling?
+
+
+Since you're working on writing a **Kafka consumer** for the **CCDS-Batch Facade**, let's break this down step by step, considering your **target state architecture**.
+
+---
+
+## **Understanding the Flow**
+
+Your **CCDS-Batch Facade** acts as an intermediary that listens for batch completion events and triggers Kafka to pull data from CCODS. Here's the **high-level flow**:
+
+1. **CCODS completes data load** → A **Kafka event** is published.
+2. **CCDS-Batch Facade (Kafka Consumer)** listens to the topic.
+3. The **consumer processes** the message and validates the data.
+4. Once validated, the **consumer triggers further batch processing** (like loading into DAN DB or triggering another service).
+
+---
+
+## **Steps to Implement a Kafka Consumer in Spring Boot**
+
+You'll need to:
+
+- **Set up Kafka dependencies**
+- **Configure Kafka Consumer properties**
+- **Write a Kafka Consumer class**
+- **Handle messages and process data**
+
+---
+
+### **Step 1: Add Dependencies**
+
+Add the required Kafka dependencies in your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.springframework.kafka</groupId>
+    <artifactId>spring-kafka</artifactId>
+    <version>3.0.7</version>  <!-- Adjust based on your Spring Boot version -->
+</dependency>
+```
+
+---
+
+### **Step 2: Configure Kafka Consumer**
+
+In `application.properties` or `application.yml`, set up the Kafka consumer properties.
+
+#### **For `application.properties`:**
+
+```properties
+spring.kafka.bootstrap-servers=localhost:9092
+spring.kafka.consumer.group-id=ccds-batch-group
+spring.kafka.consumer.auto-offset-reset=earliest
+spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+```
+
+#### **For `application.yml`:**
+
+```yaml
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: ccds-batch-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+```
+
+---
+
+### **Step 3: Implement the Kafka Consumer**
+
+Create a Kafka consumer that listens to the topic and processes messages.
+
+```java
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CCDSBatchKafkaConsumer {
+
+    private static final Logger logger = LoggerFactory.getLogger(CCDSBatchKafkaConsumer.class);
+
+    @KafkaListener(topics = "ccds-batch-topic", groupId = "ccds-batch-group")
+    public void consume(ConsumerRecord<String, String> record) {
+        logger.info("Received Kafka message: Key={}, Value={}", record.key(), record.value());
+
+        try {
+            // 1. Parse the message
+            String message = record.value();
+
+            // 2. Validate the data
+            if (message == null || message.isEmpty()) {
+                logger.error("Received empty message, ignoring...");
+                return;
+            }
+
+            // 3. Process the data (e.g., trigger batch job or store in DB)
+            processBatchData(message);
+
+        } catch (Exception e) {
+            logger.error("Error processing Kafka message: {}", e.getMessage());
+        }
+    }
+
+    private void processBatchData(String message) {
+        // Implement your processing logic (parsing JSON, triggering batch, storing in DB, etc.)
+        logger.info("Processing batch data: {}", message);
+    }
+}
+```
+
+---
+
+### **Step 4: Handling Message Processing**
+
+Your **`processBatchData()`** method should:
+
+- Parse the message (usually JSON).
+- Validate it (check required fields).
+- Trigger batch job execution (if applicable).
+- Store data in a database (if needed).
+
+For JSON messages, you can use `ObjectMapper` to parse the payload:
+
+```java
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+private void processBatchData(String message) {
+    try {
+        ObjectMapper objectMapper = new ObjectMapper();
+        CCDSBatchMessage batchMessage = objectMapper.readValue(message, CCDSBatchMessage.class);
+
+        // Further processing
+        logger.info("Processing batch for ID: {}", batchMessage.getBatchId());
+        
+    } catch (Exception e) {
+        logger.error("Failed to parse message: {}", e.getMessage());
+    }
+}
+```
+
+Create a DTO to match the Kafka message format:
+
+```java
+public class CCDSBatchMessage {
+    private String batchId;
+    private String status;
+    private String timestamp;
+
+    // Getters and Setters
+}
+```
+
+---
+
+## **Deployment Considerations**
+
+1. **Error Handling**: Implement retry mechanisms in case of failures.
+2. **Monitoring**: Use **Splunk** or **Prometheus** to track Kafka consumer metrics.
+3. **Scaling**: If high throughput is expected, increase **consumer instances**.
+4. **Logging**: Ensure proper logs are captured for debugging.
+
+---
+
+## **Summary**
+
+- **Kafka Producer (CCODS)** publishes data load completion events.
+- **Kafka Consumer (CCDS-Batch Facade)** listens for events.
+- The **consumer processes the data** and **triggers further batch execution**.
+- **Spring Kafka** provides easy-to-use annotations for consuming Kafka topics.
+- **Handling errors, scaling consumers, and monitoring logs** is crucial for smooth operations.
+
+Would you like a **Kafka Producer** example as well? Or do you need help integrating it with your batch process?
